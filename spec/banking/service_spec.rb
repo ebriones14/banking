@@ -127,6 +127,30 @@ RSpec.describe "Banking::Service" do
       expect(sender.balance_in_cents).to eq(10_000)
       expect(recipient.balance_in_cents).to eq(5_000)
     end
+
+    it "rejects a transfer if an account is not found" do
+      expect do
+        service.transfer(
+          from_account_id: nil,
+          to_account_id: recipient.id,
+          amount_in_cents: 1_000
+        )
+      end.to raise_error(Banking::InvalidAccountError)
+
+      expect(recipient.balance_in_cents).to eq(5_000)
+    end
+
+    it "rejects transfers where the sender and recipient IDs are the same" do
+      expect do
+        service.transfer(
+          from_account_id: sender.id,
+          to_account_id: sender.id,
+          amount_in_cents: 4_000
+        )
+      end.to raise_error(Banking::InvalidTransferError)
+
+      expect(sender.balance_in_cents).to eq(10_000)
+    end
   end
 
   describe "#balance" do
