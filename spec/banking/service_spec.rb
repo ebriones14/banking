@@ -41,6 +41,39 @@ RSpec.describe "Banking::Service" do
         service.deposit(account_id: account.id, amount_in_cents: 5_000)
       end.to change(account, :balance_in_cents).from(10_000).to(15_000)
     end
+
+    it "rejects a zero deposit and leaves the balance unchanged" do
+      expect do
+        service.deposit(account_id: account.id, amount_in_cents: 0)
+      end.to raise_error(
+        Banking::InvalidAmountError,
+        "amount must be greater than zero"
+      )
+
+      expect(account.balance_in_cents).to eq(10_000)
+    end
+
+    it "rejects a negative deposit and leaves the balance unchanged" do
+      expect do
+        service.deposit(account_id: account.id, amount_in_cents: -5_000)
+      end.to raise_error(
+        Banking::InvalidAmountError,
+        "amount must be greater than zero"
+      )
+
+      expect(account.balance_in_cents).to eq(10_000)
+    end
+
+    it "rejects a 'non-integer' deposit and leaves the balance unchanged" do
+      expect do
+        service.deposit(account_id: account.id, amount_in_cents: 100.50)
+      end.to raise_error(
+        Banking::InvalidAmountError,
+        "amount must be an integer"
+      )
+
+      expect(account.balance_in_cents).to eq(10_000)
+    end
   end
 
   describe "#withdraw" do
