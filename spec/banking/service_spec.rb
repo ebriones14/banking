@@ -18,6 +18,23 @@ RSpec.describe "Banking::Service" do
     end
   end
 
+  describe "#accounts" do
+    it "returns all created accounts" do
+      first_account = service.create_account(initial_deposit_in_cents: 10_000)
+      second_account = service.create_account(initial_deposit_in_cents: 5_000)
+
+      expect(service.accounts).to contain_exactly(first_account, second_account)
+    end
+
+    it "does not expose the internal account collection" do
+      created_account = account
+
+      service.accounts.clear
+
+      expect(service.accounts).to contain_exactly(created_account)
+    end
+  end
+
   describe "#deposit" do
     it "increases the account balance by the deposited amount" do
       expect do
