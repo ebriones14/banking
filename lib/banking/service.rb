@@ -24,5 +24,10 @@ module Banking
       account = @accounts.fetch(account_id)
       account.deposit(amount_in_cents: amount_in_cents)
     end
+
+    def withdraw(account_id:, amount_in_cents:)
+      account = @accounts.fetch(account_id)
+      account.withdraw(amount_in_cents: amount_in_cents)
+    end
   end
 end
