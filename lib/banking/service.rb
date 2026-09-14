@@ -20,6 +20,10 @@ module Banking
       @accounts.values.dup
     end
 
+    def balance(account_id:)
+      find_account(account_id).balance_in_cents
+    end
+
     def deposit(account_id:, amount_in_cents:)
       account = find_account(account_id)
 
