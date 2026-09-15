@@ -16,7 +16,7 @@ module Banking
         arguments: { initial_deposit_in_cents: initial_deposit_in_cents }
       ) do
         account = Account.new(
-          id: SecureRandom.uuid,
+          id: generate_account_id,
           initial_balance_in_cents: initial_deposit_in_cents
         )
 
@@ -26,7 +26,7 @@ module Banking
     end
 
     def accounts
-      @mutex.synchronize { @accounts.values.dup }
+      @mutex.synchronize { @accounts.values }
     end
 
     def balance(account_id:)
@@ -41,7 +41,9 @@ module Banking
       ) do
         account = find_account(account_id)
 
-        account.deposit(amount_in_cents: amount_in_cents)
+        updated_account = account.deposit(amount_in_cents: amount_in_cents)
+        @accounts = @accounts.merge(account.id => updated_account)
+        updated_account
       end
     end
 
@@ -53,7 +55,9 @@ module Banking
       ) do
         account = find_account(account_id)
 
-        account.withdraw(amount_in_cents: amount_in_cents)
+        updated_account = account.withdraw(amount_in_cents: amount_in_cents)
+        @accounts = @accounts.merge(account.id => updated_account)
+        updated_account
       end
     end
 
@@ -74,12 +78,28 @@ module Banking
         from_account = find_account(from_account_id)
         to_account = find_account(to_account_id)
 
-        from_account.withdraw(amount_in_cents: amount_in_cents)
-        to_account.deposit(amount_in_cents: amount_in_cents)
+        updated_from_account = from_account.withdraw(amount_in_cents: amount_in_cents)
+        updated_to_account = to_account.deposit(amount_in_cents: amount_in_cents)
+
+        @accounts = @accounts.merge(
+          from_account.id => updated_from_account,
+          to_account.id => updated_to_account
+        )
+        TransferResult.new(
+          from_account: updated_from_account,
+          to_account: updated_to_account
+        )
       end
     end
 
     private
+
+    def generate_account_id
+      loop do
+        id = SecureRandom.uuid
+        return id unless @accounts.key?(id)
+      end
+    end
 
     def find_account(account_id)
       @accounts.fetch(account_id) do
@@ -88,9 +108,14 @@ module Banking
     end
 
     def execute_once(idempotency_key:, operation:, arguments:)
+      key = normalize_idempotency_key(idempotency_key)
+      copied_arguments = arguments.transform_values do |value|
+        value.is_a?(String) ? value.dup.freeze : value
+      end.freeze
+      signature = [operation, copied_arguments].freeze
+
       @mutex.synchronize do
-        signature = [operation, arguments]
-        record = @idempotency_records[idempotency_key] if idempotency_key
+        record = @idempotency_records[key] if key
 
         if record
           unless record[:signature] == signature
@@ -102,14 +127,24 @@ module Banking
         end
 
         result = yield
-        if idempotency_key
-          @idempotency_records[idempotency_key] = {
+        if key
+          @idempotency_records[key] = {
             signature: signature,
             result: result
           }
         end
         result
       end
+    end
+
+    def normalize_idempotency_key(key)
+      return nil if key.nil?
+
+      unless key.is_a?(String) && !key.strip.empty?
+        raise InvalidIdempotencyKeyError, "idempotency key must be a non-empty string"
+      end
+
+      key.dup.freeze
     end
   end
 end

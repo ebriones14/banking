@@ -4,4 +4,5 @@ module Banking
   class InvalidAccountError < StandardError; end
   class InvalidTransferError < StandardError; end
   class IdempotencyConflictError < StandardError; end
+  class InvalidIdempotencyKeyError < StandardError; end
 end

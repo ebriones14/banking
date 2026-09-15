@@ -37,9 +37,18 @@ RSpec.describe "Banking::Service" do
 
   describe "#deposit" do
     it "increases the account balance by the deposited amount" do
+      updated_account = nil
+
       expect do
-        service.deposit(account_id: account.id, amount_in_cents: 5_000)
-      end.to change(account, :balance_in_cents).from(10_000).to(15_000)
+        updated_account = service.deposit(
+          account_id: account.id,
+          amount_in_cents: 5_000
+        )
+      end.to change { service.balance(account_id: account.id) }.from(10_000).to(15_000)
+
+      expect(updated_account.id).to eq(account.id)
+      expect(updated_account.balance_in_cents).to eq(15_000)
+      expect(updated_account).not_to equal(account)
     end
 
     it "rejects a zero deposit and leaves the balance unchanged" do
@@ -50,7 +59,7 @@ RSpec.describe "Banking::Service" do
         "amount must be greater than zero"
       )
 
-      expect(account.balance_in_cents).to eq(10_000)
+      expect(service.balance(account_id: account.id)).to eq(10_000)
     end
 
     it "rejects a negative deposit and leaves the balance unchanged" do
@@ -61,10 +70,10 @@ RSpec.describe "Banking::Service" do
         "amount must be greater than zero"
       )
 
-      expect(account.balance_in_cents).to eq(10_000)
+      expect(service.balance(account_id: account.id)).to eq(10_000)
     end
 
-    it "rejects a 'non-integer' deposit and leaves the balance unchanged" do
+    it "rejects a non-integer deposit and leaves the balance unchanged" do
       expect do
         service.deposit(account_id: account.id, amount_in_cents: 100.50)
       end.to raise_error(
@@ -72,15 +81,24 @@ RSpec.describe "Banking::Service" do
         "amount must be an integer"
       )
 
-      expect(account.balance_in_cents).to eq(10_000)
+      expect(service.balance(account_id: account.id)).to eq(10_000)
     end
   end
 
   describe "#withdraw" do
     it "decreases the account balance by the withdrawn amount" do
+      updated_account = nil
+
       expect do
-        service.withdraw(account_id: account.id, amount_in_cents: 9_000)
-      end.to change(account, :balance_in_cents).from(10_000).to(1_000)
+        updated_account = service.withdraw(
+          account_id: account.id,
+          amount_in_cents: 9_000
+        )
+      end.to change { service.balance(account_id: account.id) }.from(10_000).to(1_000)
+
+      expect(updated_account.id).to eq(account.id)
+      expect(updated_account.balance_in_cents).to eq(1_000)
+      expect(updated_account).not_to equal(account)
     end
 
     it "rejects a withdrawal that exceeds the account balance" do
@@ -91,7 +109,7 @@ RSpec.describe "Banking::Service" do
         )
       end.to raise_error(Banking::InsufficientFundsError)
 
-      expect(account.balance_in_cents).to eq(10_000)
+      expect(service.balance(account_id: account.id)).to eq(10_000)
     end
   end
 
@@ -104,15 +122,22 @@ RSpec.describe "Banking::Service" do
     it "moves money between accounts while preserving their combined balance" do
       combined_balance = sender.balance_in_cents + recipient.balance_in_cents
 
-      service.transfer(
+      result = service.transfer(
         from_account_id: sender.id,
         to_account_id: recipient.id,
         amount_in_cents: 3_000
       )
 
-      expect(sender.balance_in_cents).to eq(7_000)
-      expect(recipient.balance_in_cents).to eq(8_000)
-      expect(sender.balance_in_cents + recipient.balance_in_cents).to eq(combined_balance)
+      expect(result.from_account.id).to eq(sender.id)
+      expect(result.from_account.balance_in_cents).to eq(7_000)
+      expect(result.to_account.id).to eq(recipient.id)
+      expect(result.to_account.balance_in_cents).to eq(8_000)
+      expect(result).to be_frozen
+      expect(service.balance(account_id: sender.id)).to eq(7_000)
+      expect(service.balance(account_id: recipient.id)).to eq(8_000)
+      expect(
+        service.balance(account_id: sender.id) + service.balance(account_id: recipient.id)
+      ).to eq(combined_balance)
     end
 
     it "rejects an overdraft and leaves both account balances unchanged" do
@@ -124,8 +149,8 @@ RSpec.describe "Banking::Service" do
         )
       end.to raise_error(Banking::InsufficientFundsError)
 
-      expect(sender.balance_in_cents).to eq(10_000)
-      expect(recipient.balance_in_cents).to eq(5_000)
+      expect(service.balance(account_id: sender.id)).to eq(10_000)
+      expect(service.balance(account_id: recipient.id)).to eq(5_000)
     end
 
     it "rejects a transfer if an account is not found" do
@@ -137,7 +162,7 @@ RSpec.describe "Banking::Service" do
         )
       end.to raise_error(Banking::InvalidAccountError)
 
-      expect(recipient.balance_in_cents).to eq(5_000)
+      expect(service.balance(account_id: recipient.id)).to eq(5_000)
     end
 
     it "rejects transfers where the sender and recipient IDs are the same" do
@@ -149,7 +174,7 @@ RSpec.describe "Banking::Service" do
         )
       end.to raise_error(Banking::InvalidTransferError)
 
-      expect(sender.balance_in_cents).to eq(10_000)
+      expect(service.balance(account_id: sender.id)).to eq(10_000)
     end
   end
 
