@@ -3,4 +3,5 @@ module Banking
   class InsufficientFundsError < StandardError; end
   class InvalidAccountError < StandardError; end
   class InvalidTransferError < StandardError; end
+  class IdempotencyConflictError < StandardError; end
 end
